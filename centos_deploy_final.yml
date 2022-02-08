@@ -12,7 +12,7 @@
     - name: Download pip 
       apt:
         name: pip
-        state: latest
+        state: latest,,,,,
       
     - name: Install docker method on Python 
       command: pip install docker
