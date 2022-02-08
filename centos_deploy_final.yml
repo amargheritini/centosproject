@@ -1,0 +1,316 @@
+---
+- name: Upgrade host controller
+  gather_facts: yes
+  connection: local
+  hosts: controller
+  tasks:
+    - name: install tftp
+      apt:
+        name: tftp
+        state: latest
+
+    - name: Download pip 
+      apt:
+        name: pip
+        state: latest
+      
+    - name: Install docker method on Python 
+      command: pip install docker
+
+    - name: Task Completed
+      debug:
+        msg: 100$
+  become: True
+  become_user: root  
+
+
+
+
+- name: Update Centos Boxes
+  gather_facts: yes
+  become: True
+  become_user: root
+  hosts: guest_primary, guest_secondary
+  tasks:
+      - name: update centos
+        yum:
+          name: '*'
+          state: latest  
+
+      - name: install python
+        yum:
+          name: python
+          state: latest  
+
+      - name: install epel release
+        yum:
+          name: epel-release
+          state: latest 
+
+      - name: install python-pip
+        yum:
+          name: python-pip
+          state: latest 
+
+      - name: install Python method docker
+        command: pip install docker      
+
+      
+      - name: Task Completed
+        debug:
+          msg: 100%
+
+
+      
+   
+- name: Install Docker
+  gather_facts: yes
+  hosts: guest_primary, guest_secondary
+  become: true
+  become_user: root
+
+########### Create partition and docker root directory  #################
+                
+  tasks:  
+    - name: install epel release
+      yum:
+        name: epel-release
+        state: latest 
+
+    - name: install python3
+      yum:
+        name: python3
+        state: latest  
+
+
+    - name: Create partition
+      community.general.parted:
+        device: /dev/sdb
+        number: 1
+        flags: [ lvm ]
+        state: present
+
+    - name: Format created Partition
+      community.general.filesystem:
+        fstype: ext2
+        dev: /dev/sdb1
+
+
+    - name: Mount partition
+      ansible.posix.mount:
+        fstype: ext2
+        src: /dev/sdb1
+        path: /work_doker
+        state: mounted
+
+
+    - name: Remove file docker config if is present
+      ansible.builtin.file:
+          path: /etc/docker/daemon.json
+          state: absent
+
+    - name: Create docker root directory
+      ansible.builtin.file:
+        path: /work_docker/My_space
+        state: directory
+
+
+
+  ########### Install Docker package  #################
+    - name: Upgrade all packages
+      yum: name=* state=latest
+
+    - name: Check if Docker is installed
+      command: systemctl status docker
+      register: docker_check
+      ignore_errors: yes
+
+    - name: Download the Docker installer
+      get_url:
+        url: https://get.docker.com/
+        dest: /root/install_docker.sh
+        mode: 0700
+      when: docker_check.stderr.find('service could not be found') != -1
+
+    - name: Install Docker
+      shell: /root/install_docker.sh
+      when: docker_check.stderr.find('service could not be found') != -1
+
+    - name: Remove the Docker installer file.
+      file:
+        state: absent
+        path: /root/install_docker.sh
+
+
+########### Start Docker service #################
+
+    - name: Enable the Docker daemon in systemd
+      systemd:
+        name: docker
+        enabled: yes
+        masked: no
+
+    - name: Start the Docker daemon
+      systemd:
+        name: docker
+        state: started
+        masked: no
+
+    - name: Pause for 20 second waiting daemon up  
+      pause:
+        seconds: 20
+
+
+    
+ 
+
+########### stop Docker service #################
+
+    - name: Stop the Docker daemon
+      ansible.builtin.systemd:
+        name: docker.service
+        state: stopped
+        masked: no
+
+
+################ Secure docker daemon with key gen by openssh
+
+  
+
+    - name: Create json configuration file for moving root docker directory
+      ansible.builtin.copy:
+        content: ""
+        dest: /etc/docker/daemon.json
+        force: no
+        group: sys
+        owner: vagrant
+    
+
+    
+    - name: Create directory for docker daemon config file
+      ansible.builtin.file: 
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+ 
+
+    - name: Create override docker daemon config file
+      ansible.builtin.copy:
+        content: ""
+        dest: /etc/systemd/system/docker.service.d/override.conf
+        force: no
+        group: sys
+        owner: vagrant
+        
+
+  
+#### text block to create specific docker configuration file for tls
+ 
+
+
+
+
+    - name: Set configuration docker daemon about storage/TLS ket
+      ansible.builtin.blockinfile:
+        path: /etc/docker/daemon.json
+        block: |
+              {
+              "data-root": "/work_docker/My_space",
+              "tls": true,
+              "tlscert": "/etc/default/docker/server-cert.pem",
+              "tlscacert": "/etc/default/docker/ca.pem",
+              "tlskey": "/etc/default/docker/server-key.pem",
+              "tlsverify": true
+              }
+
+    - name: Replace unnecessary entry in daemon.json
+      ansible.builtin.lineinfile:
+        path: /etc/docker/daemon.json
+        regexp: "# BEGIN ANSIBLE MANAGED BLOCK"
+        state: absent
+           
+   
+    - name: Replace unnecessary entry in daemon.json
+      ansible.builtin.lineinfile:
+        path: /etc/docker/daemon.json
+        regexp: "# END ANSIBLE MANAGED BLOCK"
+        state: absent
+   
+     
+          #### text block to create specific docker configuration file
+
+    - name: mv root directory in my space
+      ansible.builtin.copy:
+        src: /var/lib/docker
+        dest: /work_docker/My_space
+
+
+
+- name: Install Docker guest_primary
+  gather_facts: yes
+  hosts: guest_primary
+  become: true
+
+  tasks:
+
+        - name: Set configuration docker daemon listener about TLS service wl#1
+          ansible.builtin.blockinfile:
+            path: /etc/systemd/system/docker.service.d/override.conf
+            block: |
+                    [Service]
+                    ExecStart=
+                    ExecStart=/usr/bin/dockerd -H fd:// -H tcp://192.168.2.101:2376 
+
+- name: Install Docker guest_secondary
+  gather_facts: yes
+  hosts: guest_secondary
+  become: true
+
+  tasks:
+
+        - name: Set configuration docker daemon listener about TLS service wl#2
+          ansible.builtin.blockinfile:
+            path: /etc/systemd/system/docker.service.d/override.conf
+            block: |
+                    [Service]
+                    ExecStart=
+                    ExecStart=/usr/bin/dockerd -H fd:// -H tcp://192.168.2.102:2376 
+
+
+
+
+  
+- name: Secure the docker daemon
+  hosts: guest_primary, guest_secondary
+  #connection: local
+  gather_facts: yes
+  become_user: root
+  become: true
+  roles:
+    - role: alexinthesky.secure-docker-daemon
+      dds_host: 192.168.2.100
+      dds_server_cert_path: /etc/default/docker
+      dds_client_cert_path: /etc/default/docker_client
+      dds_passphrase: 'Pass123!'      
+      dds_country: 'IT'
+      dds_state: 'Emilia-Romagna'
+      dds_locality: 'Forli'
+      dds_organization: 'VEM'
+      dds_restart_docker: yes
+
+
+
+- name: Install docker swarm cluster with controller as manager / guests as workers
+  hosts: controller, guest_primary, guest_secondary
+  gather_facts: yes
+  become_user: root
+  become: true
+  roles:
+    - role: atosatto.docker-swarm
+
+
+- name: Secure API TLS Swarm access
+  hosts: controller
+  roles:
+    - role: bessonov.docker-remote-api
+
+
