@@ -295,8 +295,17 @@
 
 
 
-- name: Install docker swarm cluster with controller as manager / guests as workers
-  hosts: controller, guest_primary, guest_secondary
+- name: Install docker swarm cluster with controller as manager
+  hosts: controller 
+  gather_facts: yes
+  become_user: root
+  become: true
+  roles:
+    - role: atosatto.docker-swarm
+
+
+- name: Install docker swarm cluster with guests as workers
+  hosts: guest_primary, guest_secondary
   gather_facts: yes
   become_user: root
   become: true
