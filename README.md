@@ -3,7 +3,7 @@
 This project permit deployment of a VirtualBox infarstructure with 1 Ubuntu Controller and 2 Centos workers beloning in a Docker Swarm infrastructure
 
 
-Requirements
+# Requirements  
 
 All the needed Ansible role/collection should be installed properly within the Vagrant process
 
