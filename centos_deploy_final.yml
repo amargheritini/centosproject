@@ -17,11 +17,6 @@
     - name: Install docker method on Python 
       command: pip install docker
 
-    - name: Task Completed
-      debug:
-        msg: 100$
-  become: True
-  become_user: root  
 
 
 
@@ -56,9 +51,7 @@
         command: pip install docker      
 
       
-      - name: Task Completed
-        debug:
-          msg: 100%
+
 
 
       
@@ -295,8 +288,8 @@
 
 
 
-- name: Install docker swarm cluster with controller as manager
-  hosts: controller 
+- name: Install docker swarm cluster on the enviroments
+  hosts: all 
   gather_facts: yes
   become_user: root
   become: true
@@ -304,13 +297,6 @@
     - role: atosatto.docker-swarm
 
 
-- name: Install docker swarm cluster with guests as workers
-  hosts: guest_primary, guest_secondary
-  gather_facts: yes
-  become_user: root
-  become: true
-  roles:
-    - role: atosatto.docker-swarm
 
 
 - name: Secure API TLS Swarm access

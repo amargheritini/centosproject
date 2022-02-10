@@ -16,11 +16,11 @@
 
 
 [docker_swarm_manager]
-192.168.2.100 swarm_labels=deploy
+192.168.2.100 
 
 [docker_swarm_worker]
-192.168.2.101 swarm_labels=test
-192.168.2.102  
+192.168.2.101 swarm_labels=wr#1
+192.168.2.102  swarm_labels=wr#2 
 
 [guest_primary:vars]
 ansible_user=vagrant
